@@ -391,6 +391,7 @@ var SupportedTypes = []string{
 	"qoder",
 	"qoderclicn",
 	"traecli",
+	"tomcat",
 	"grok",
 	"qwen",
 	"qwenpaw",
@@ -493,6 +494,8 @@ func New(agentType string, cfg Config) (Backend, error) {
 		return &qoderBackend{cfg: cfg, defaultExecutable: qoderDefaultBinary(agentType)}, nil
 	case "traecli":
 		return &traecliBackend{cfg: cfg}, nil
+	case "tomcat":
+		return &tomcatBackend{cfg: cfg}, nil
 	case "grok":
 		return &grokBackend{cfg: cfg}, nil
 	case "qwen":
@@ -546,6 +549,7 @@ var launchHeaders = map[string]string{
 	"qoder":       "qodercli --acp",
 	"qoderclicn":  "qoderclicn --acp",
 	"traecli":     "traecli acp serve",
+	"tomcat":      "tomcat acp",
 	"grok":        "grok agent stdio",
 	"qwen":        "qwen -p (stream-json)",
 	"qwenpaw":     "qwenpaw acp",

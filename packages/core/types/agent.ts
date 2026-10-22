@@ -124,6 +124,7 @@ export const RUNTIME_PROFILE_PROTOCOL_FAMILIES = [
   "qoder",
   "qoderclicn",
   "traecli",
+  "tomcat",
   "grok",
   "qwen",
   "qwenpaw",

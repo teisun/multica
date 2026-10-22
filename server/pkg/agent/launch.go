@@ -464,6 +464,7 @@ var launchPrefixBlockedArgs = map[string]map[string]blockedArgMode{
 	"qwenpaw":     qwenpawBlockedArgs,
 	"reasonix":    reasonixBlockedArgs,
 	"traecli":     traecliBlockedArgs,
+	"tomcat":      tomcatBlockedArgs,
 	"dim":         dimBlockedArgs,
 	"zeroclaw":    zeroclawBlockedArgs,
 }

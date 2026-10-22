@@ -290,6 +290,10 @@ func ListModels(ctx context.Context, providerType string, runtimeCmd Command) (C
 		return cachedDiscovery(discoveryCacheKey(providerType, runtimeCmd), func() (Catalog, error) {
 			return discoverCodebuddyModels(ctx, runtimeCmd)
 		})
+	case "tomcat":
+		// Preserve the configured runtime default and manual model IDs. Listing
+		// must not start the shared service or create a throwaway conversation.
+		return Catalog{Models: []Model{}}, nil
 	case "qwen":
 		// Qwen Code has no account-independent headless model catalog. An
 		// empty list keeps the runtime default and manual model entry available

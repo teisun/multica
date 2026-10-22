@@ -151,6 +151,7 @@ var allFileBasedProviders = []string{
 	"codearts",
 	"openclaw",
 	"hermes",
+	"tomcat",
 	"pi",
 	"omp",
 	"cursor",
@@ -645,6 +646,7 @@ var sameSlugSkillProviderCases = []struct {
 	{"kiro", filepath.Join(".kiro", "skills", "issue-review")},
 	{"antigravity", filepath.Join(".agents", "skills", "issue-review")},
 	{"muse", filepath.Join(".agents", "skills", "issue-review")},
+	{"tomcat", filepath.Join(".agents", "skills", "issue-review")},
 	{"qwen", filepath.Join(".qwen", "skills", "issue-review")},
 	{"hermes", filepath.Join(".agent_context", "skills", "issue-review")},
 }

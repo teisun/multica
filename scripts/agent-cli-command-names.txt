@@ -23,5 +23,6 @@ qoderclicn
 qwen
 qwenpaw
 reasonix
+tomcat
 traecli
 zeroclaw

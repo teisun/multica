@@ -413,6 +413,8 @@ func skillsDirPath(workDir, provider string) string {
 	case "mcode":
 		// MiniMax Code discovers project-level skills from .minimax/skills/.
 		return filepath.Join(workDir, ".minimax", "skills")
+	case "tomcat":
+		return filepath.Join(workDir, ".agents", "skills")
 	case "muse":
 		// Muse's native project root: https://meta-models.github.io/muse-code-sdk/next/guides/extend/skills/
 		return filepath.Join(workDir, ".agents", "skills")
