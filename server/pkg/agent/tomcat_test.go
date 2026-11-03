@@ -79,7 +79,7 @@ func TestTomcatHelperProcess(t *testing.T) {
 			}
 		case "session/prompt":
 			_ = os.WriteFile(filepath.Join(root, "prompted"), []byte("yes"), 0600)
-			if mode == "wait" || mode == "hang" {
+			if mode == "wait" || mode == "hang" || mode == "cancel-shutdown-failure" {
 				if mode == "hang" {
 					self, _ := os.Executable()
 					child := exec.Command(self, "-test.run=^TestTomcatHelperProcess$")
@@ -116,7 +116,7 @@ func TestTomcatHelperProcess(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 	_ = os.WriteFile(filepath.Join(root, "stopped"), []byte("yes"), 0600)
-	if mode == "shutdown-failure" {
+	if mode == "shutdown-failure" || mode == "cancel-shutdown-failure" {
 		os.Exit(94)
 	}
 	os.Exit(0)
@@ -226,7 +226,7 @@ func TestTomcatFailuresAndResumeClassification(t *testing.T) {
 	for _, tc := range []struct {
 		mode, status string
 		rejected     bool
-	}{{"missing", "failed", true}, {"busy", "failed", false}, {"failure", "failed", false}, {"cancelled", "aborted", false}, {"invalid", "failed", false}, {"shutdown-failure", "failed", false}, {"bad-model", "failed", false}} {
+	}{{"missing", "failed", true}, {"busy", "failed", false}, {"failure", "failed", false}, {"cancelled", "aborted", false}, {"invalid", "failed", false}, {"shutdown-failure", "cleanup_unconfirmed", false}, {"bad-model", "failed", false}} {
 		t.Run(tc.mode, func(t *testing.T) {
 			backend, root := tomcatTestBackend(t, tc.mode)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -239,6 +239,10 @@ func TestTomcatFailuresAndResumeClassification(t *testing.T) {
 			if result.Status != tc.status || result.ResumeRejected != tc.rejected || result.Error == "" {
 				t.Fatalf("result: %+v", result)
 			}
+			wantTerminal := tc.mode == "cancelled" || tc.mode == "shutdown-failure"
+			if session.TerminalObserved() != wantTerminal || !session.CleanupRequired {
+				t.Fatalf("terminal=%v want=%v cleanupRequired=%v", session.TerminalObserved(), wantTerminal, session.CleanupRequired)
+			}
 			if _, err := os.Stat(filepath.Join(root, "stopped")); err != nil {
 				t.Fatal("result before shutdown", err)
 			}
@@ -247,7 +251,7 @@ func TestTomcatFailuresAndResumeClassification(t *testing.T) {
 }
 
 func TestTomcatCancellationWaitsForEOFExitAndKillsUnresponsiveTree(t *testing.T) {
-	for _, mode := range []string{"wait", "hang"} {
+	for _, mode := range []string{"wait", "hang", "cancel-shutdown-failure"} {
 		t.Run(mode, func(t *testing.T) {
 			backend, root := tomcatTestBackend(t, mode)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -273,14 +277,18 @@ func TestTomcatCancellationWaitsForEOFExitAndKillsUnresponsiveTree(t *testing.T)
 			started := time.Now()
 			cancel()
 			result := tomcatResult(t, session)
-			if result.Status != "aborted" {
-				t.Fatalf("result: %+v", result)
+			wantStatus := "aborted"
+			if mode != "wait" {
+				wantStatus = "cleanup_unconfirmed"
+			}
+			if result.Status != wantStatus || session.TerminalObserved() || !session.CleanupRequired {
+				t.Fatalf("result=%+v terminal=%v cleanupRequired=%v", result, session.TerminalObserved(), session.CleanupRequired)
 			}
 			if mode == "wait" {
 				if _, err := os.Stat(filepath.Join(root, "stopped")); err != nil {
 					t.Fatal("peer was killed rather than allowed to finish", err)
 				}
-			} else {
+			} else if mode == "hang" {
 				if time.Since(started) < tomcatShutdownGrace {
 					t.Fatal("killed before grace expired")
 				}
@@ -295,6 +303,18 @@ func TestTomcatCancellationWaitsForEOFExitAndKillsUnresponsiveTree(t *testing.T)
 				}
 			}
 		})
+	}
+}
+
+func TestTomcatLocalTimeoutDoesNotClaimAnAuthoritativeTerminal(t *testing.T) {
+	backend, root := tomcatTestBackend(t, "wait")
+	session, err := backend.Execute(t.Context(), "task", ExecOptions{Cwd: root, Timeout: 100 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := tomcatResult(t, session)
+	if result.Status != "timeout" || session.TerminalObserved() || !session.CleanupRequired {
+		t.Fatalf("result=%+v terminal=%v cleanupRequired=%v", result, session.TerminalObserved(), session.CleanupRequired)
 	}
 }
 

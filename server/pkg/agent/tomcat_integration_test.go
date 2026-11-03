@@ -41,6 +41,9 @@ func TestTomcatSharedServeWithHermesClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := []string{"HOME=" + home, "PATH=" + os.Getenv("PATH"), "SHELL=/bin/sh", "NO_PROXY=127.0.0.1,localhost", "TOMCAT__UI__LANGUAGE=en"}
+	if active := os.Getenv("TOMCAT_AGENT_ACTIVE"); active != "" {
+		env = append(env, "TOMCAT_AGENT_ACTIVE="+active)
+	}
 	command := func(ctx context.Context, args ...string) *exec.Cmd {
 		cmd := exec.CommandContext(ctx, binary, args...)
 		cmd.Env, cmd.Dir = env, workspace

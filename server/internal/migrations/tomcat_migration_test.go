@@ -25,9 +25,9 @@ func TestTomcatProtocolFamilyMigration(t *testing.T) {
 	if _, err := conn.Exec(ctx, "CREATE TEMP TABLE runtime_profile (protocol_family text NOT NULL)"); err != nil {
 		t.Fatal(err)
 	}
-	applyMigrationFile(t, ctx, conn, "583_runtime_profile_add_muse.up.sql")
+	applyMigrationFile(t, ctx, conn, "593_runtime_profile_add_devin.up.sql")
 	assertInsertCheckViolation(t, ctx, conn, "INSERT INTO runtime_profile VALUES ('tomcat')")
-	applyMigrationFile(t, ctx, conn, "584_runtime_profile_add_tomcat.up.sql")
+	applyMigrationFile(t, ctx, conn, "607_runtime_profile_add_tomcat.up.sql")
 	for _, family := range agent.SupportedTypes {
 		if _, err := conn.Exec(ctx, "INSERT INTO runtime_profile VALUES ($1)", family); err != nil {
 			t.Fatalf("family %q rejected after up: %v", family, err)
@@ -37,16 +37,22 @@ func TestTomcatProtocolFamilyMigration(t *testing.T) {
 	if err := conn.QueryRow(ctx, "SELECT convalidated FROM pg_constraint WHERE conrelid='runtime_profile'::regclass AND conname='runtime_profile_protocol_family_check'").Scan(&validated); err != nil || validated {
 		t.Fatalf("validated=%v err=%v", validated, err)
 	}
-	applyMigrationFile(t, ctx, conn, "584_runtime_profile_add_tomcat.down.sql")
+	applyMigrationFile(t, ctx, conn, "607_runtime_profile_add_tomcat.down.sql")
 	assertInsertCheckViolation(t, ctx, conn, "INSERT INTO runtime_profile VALUES ('tomcat')")
 	var count int
 	if err := conn.QueryRow(ctx, "SELECT count(*) FROM runtime_profile WHERE protocol_family='tomcat'").Scan(&count); err != nil || count != 1 {
 		t.Fatalf("rollback changed existing row: count=%d err=%v", count, err)
 	}
-	if _, err := conn.Exec(ctx, "INSERT INTO runtime_profile VALUES ('muse')"); err != nil {
-		t.Fatal("rollback removed prior provider", err)
+	assertInsertCheckViolation(t, ctx, conn, "INSERT INTO runtime_profile VALUES ('unknown-provider')")
+	for _, family := range agent.SupportedTypes {
+		if family == "tomcat" {
+			continue
+		}
+		if _, err := conn.Exec(ctx, "INSERT INTO runtime_profile VALUES ($1)", family); err != nil {
+			t.Fatalf("rollback removed upstream provider %q: %v", family, err)
+		}
 	}
-	applyMigrationFile(t, ctx, conn, "584_runtime_profile_add_tomcat.up.sql")
+	applyMigrationFile(t, ctx, conn, "607_runtime_profile_add_tomcat.up.sql")
 	if _, err := conn.Exec(ctx, "INSERT INTO runtime_profile VALUES ('tomcat')"); err != nil {
 		t.Fatal(err)
 	}

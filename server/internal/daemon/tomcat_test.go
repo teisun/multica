@@ -1,10 +1,17 @@
 package daemon
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/multica-ai/multica/server/pkg/agent"
 )
 
 func TestTomcatDiscoveryHonorsOverrideAndModel(t *testing.T) {
@@ -28,10 +35,52 @@ func TestTomcatDiscoveryHonorsOverrideAndModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entry, ok := cfg.Agents["tomcat"]; !ok || entry.Path != canonicalExecutablePath(bin) || entry.Model != "configured-model" {
+	if entry, ok := cfg.Agents["tomcat"]; !ok || entry.Path != bin || entry.Command != bin || entry.Model != "configured-model" {
 		t.Fatalf("Tomcat entry: %+v", cfg.Agents["tomcat"])
 	}
 	if providerNeedsInlineSystemPrompt("tomcat") {
 		t.Fatal("Tomcat brief must stay in AGENTS.md")
 	}
+}
+
+// A forwarder can legitimately need 35s for its bounded shared-service close.
+// Missing the daemon's shorter handoff must preserve, not authorize, cleanup.
+type tomcatSlowCleanupBackend struct {
+	gate   <-chan struct{}
+	cancel context.CancelFunc
+}
+
+func (b tomcatSlowCleanupBackend) Execute(ctx context.Context, _ string, _ agent.ExecOptions) (*agent.Session, error) {
+	messages := make(chan agent.Message)
+	results := make(chan agent.Result, 1)
+	go func() {
+		<-ctx.Done()
+		close(messages)
+		<-b.gate
+		time.Sleep(35 * time.Second)
+		results <- agent.Result{Status: "aborted"}
+		close(results)
+	}()
+	b.cancel()
+	return &agent.Session{Messages: messages, Result: results, CleanupRequired: true, TerminalObserved: func() bool { return false }}, nil
+}
+
+func TestTomcatCleanupBeyondHandoffFailsClosed(t *testing.T) {
+	// Keep the real HTTP server outside the virtual-time bubble.
+	d := newTestDaemon(t)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		probe := &handoffProbe{gate: make(chan struct{}), prefix: "waiting for the backend to hand over its result after cancellation"}
+		result, _, err := d.executeAndDrain(ctx, tomcatSlowCleanupBackend{gate: probe.gate, cancel: cancel}, "task", agent.ExecOptions{}, slog.New(probe), "tomcat-slow-cleanup", "", new(atomic.Int32))
+		if !probe.seen.Load() || err != nil || result.Status != "cleanup_unconfirmed" {
+			t.Fatalf("handoff=%v result=%+v err=%v", probe.seen.Load(), result, err)
+		}
+		if d.ShutdownCleanupConfirmed() || shouldRetryWithFreshSession(result, "existing-session", 0, "tomcat") {
+			t.Fatal("missing cleanup acknowledgement allowed automatic continuation")
+		}
+		// Join the delayed acknowledgement without advancing a real clock.
+		time.Sleep(6 * time.Second)
+		synctest.Wait()
+	})
 }
