@@ -35,15 +35,19 @@ func TestTomcatSharedServeWithHermesClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(home) })
+	retainHome := false
+	t.Cleanup(func() {
+		if !retainHome {
+			if err := os.RemoveAll(home); err != nil {
+				t.Errorf("remove private HOME %s: %v", home, err)
+			}
+		}
+	})
 	workspace := filepath.Join(home, "work")
 	if err := os.MkdirAll(workspace, 0700); err != nil {
 		t.Fatal(err)
 	}
-	env := []string{"HOME=" + home, "PATH=" + os.Getenv("PATH"), "SHELL=/bin/sh", "NO_PROXY=127.0.0.1,localhost", "TOMCAT__UI__LANGUAGE=en"}
-	if active := os.Getenv("TOMCAT_AGENT_ACTIVE"); active != "" {
-		env = append(env, "TOMCAT_AGENT_ACTIVE="+active)
-	}
+	env := tomcatFixtureEnv(home)
 	command := func(ctx context.Context, args ...string) *exec.Cmd {
 		cmd := exec.CommandContext(ctx, binary, args...)
 		cmd.Env, cmd.Dir = env, workspace
@@ -130,7 +134,15 @@ func TestTomcatSharedServeWithHermesClient(t *testing.T) {
 	write(filepath.Join(home, ".tomcat", "models.toml"), fmt.Sprintf("[[models]]\nid = \"mock\"\napi = \"openai\"\nprovider = \"openai\"\nbase_url = %s\ncapabilities = { tools = true, vision = false, files = false, reasoning = false, web_search = false }\n", strconv.Quote(server.URL)))
 	write(filepath.Join(workspace, "AGENTS.md"), "fixture-project-instruction\n")
 	run("model", "key", "set", "openai", "local-fixture-key")
-	t.Cleanup(func() { run("serve", "stop") })
+	t.Cleanup(func() {
+		stopCtx, stop := context.WithTimeout(context.Background(), 20*time.Second)
+		defer stop()
+		out, err := command(stopCtx, "serve", "stop").CombinedOutput()
+		if err != nil {
+			retainHome = true
+			t.Errorf("private service cleanup failed; retaining HOME %s: %v\n%s", home, err, out)
+		}
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	if serviceBinary := os.Getenv("MULTICA_TOMCAT_TEST_SERVICE_BIN"); serviceBinary != "" {
@@ -319,17 +331,7 @@ func TestTomcatSharedServeWithHermesClient(t *testing.T) {
 			t.Fatal(err)
 		}
 		write(filepath.Join(work, "AGENTS.md"), "fixture-project-instruction\n")
-		environment := map[string]string{}
-		// Simulate a separate host instead of inheriting the active Tomcat
-		// session running this test. Only the isolated fixture's env is kept.
-		for _, entry := range os.Environ() {
-			key, _, _ := strings.Cut(entry, "=")
-			environment[key] = ""
-		}
-		for _, entry := range env {
-			key, value, _ := strings.Cut(entry, "=")
-			environment[key] = value
-		}
+		environment := tomcatHostEnv(env)
 		backend, err := New("tomcat", Config{ExecutablePath: binary, Env: environment, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 		if err != nil {
 			t.Fatal(err)
