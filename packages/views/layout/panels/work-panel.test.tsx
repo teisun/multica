@@ -209,6 +209,18 @@ beforeEach(() => {
 });
 
 describe("WorkPanel issue highlight", () => {
+  it("does not update WorkPanel during a child query's render on cold issue navigation", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      renderPanel(`/acme/issues/${ISSUE.identifier}`);
+      await screen.findByRole("link", { name: ISSUE.title });
+      await waitFor(() => expect(issueRow()).toHaveAttribute("aria-current", "page"));
+      expect(errors.mock.calls.filter((args) => String(args[0]).includes("Cannot update a component"))).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   it("lights a clicked tree issue at once, never All issues first", async () => {
     renderPanel("/acme/my-issues");
     fireEvent.click(await screen.findByRole("link", { name: ISSUE.title }));
