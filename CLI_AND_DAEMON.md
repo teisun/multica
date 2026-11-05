@@ -73,6 +73,69 @@ multica daemon start
 
 `multica login` automatically discovers all workspaces you belong to and adds them to the daemon watch list.
 
+### Tomcat launcher
+
+From this checkout, use Node.js 22+ (no additional packages required):
+
+```bash
+node scripts/start-tomcat.mjs
+```
+
+The launcher reuses the saved `local-tomcat` profile. If its daemon is running or
+starting, it leaves it untouched. Otherwise, it selects the Tomcat CLI in this
+order and passes its absolute path through `MULTICA_TOMCAT_PATH` to `daemon start`:
+
+1. The Tomcat VS Code extension in `~/.vscode/extensions`, then VS Code Insiders.
+   It uses the installed-extension registry, not leftover upgrade directories.
+   Without a registry, it searches versioned directories, excluding `.obsolete` entries.
+2. The standalone `tomcat` on `PATH`, then `~/.local/bin` and `~/bin`.
+
+This covers CLI-only, extension-only, and both-installed machines on macOS,
+Linux, and Windows (`tomcat.exe`). A selected executable that cannot run fails
+with an error instead of silently switching installations. The script checks
+local daemon readiness, not successful runtime registration or model execution.
+
+```bash
+node scripts/start-tomcat.mjs --dry-run                 # status/files only, no startup
+node scripts/start-tomcat.mjs --profile my-profile      # reuse another saved profile
+node scripts/start-tomcat.mjs --profile=                # reuse the unnamed profile
+node scripts/start-tomcat.mjs --extensions-dir /path/to/extensions
+node scripts/start-tomcat.mjs --multica /path/to/multica
+```
+
+`VSCODE_EXTENSIONS` also selects a custom extensions directory. Multica itself is
+resolved from this checkout's `server/bin/multica` first, then `PATH` and the user
+bin directories. Use `--multica` to select another build explicitly.
+
+**First use only:** if you have not configured a CLI profile, save your server and
+app URLs and log in once. For example, for a local development environment (replace
+these ports with the values reported by `make status`; Windows uses `multica.exe`):
+
+```bash
+./server/bin/multica config set server_url http://localhost:18461 --profile local-tomcat
+./server/bin/multica config set app_url http://localhost:13381 --profile local-tomcat
+./server/bin/multica login --profile local-tomcat
+node scripts/start-tomcat.mjs
+```
+
+The launcher never runs `setup` or `login`, resets configuration, installs binaries,
+or restarts/stops a daemon. It keeps the existing HOME, credentials, and daemon
+settings; normal Multica environment overrides still apply. Only the child process's
+`MULTICA_TOMCAT_PATH` is replaced by discovery. Run it in your own terminal, not
+inside a Tomcat Agent task. Starting a daemon allows it to claim eligible queued work.
+
+You do **not** need to run it before each task: only when the daemon is stopped,
+such as after reboot. Each fresh start rediscovers the extension version; an already
+running daemon is not switched to a new CLI. This is not an autostart installer, and
+shell-only `MULTICA_TOMCAT_PATH` does not persist into OS autostart (see
+[Boot autostart](#boot-autostart)).
+
+Focused offline regression check (temporary files and fake CLIs only):
+
+```bash
+node --test scripts/start-tomcat.test.mjs
+```
+
 ## Authentication
 
 ### Browser Login
