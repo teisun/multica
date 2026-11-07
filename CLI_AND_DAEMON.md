@@ -73,39 +73,41 @@ multica daemon start
 
 `multica login` automatically discovers all workspaces you belong to and adds them to the daemon watch list.
 
-### Tomcat launcher
+### Tomcat
 
-From this checkout, use Node.js 22+ (no additional packages required):
-
-```bash
-node scripts/start-tomcat.mjs
+```text
+Tomcat platform extension / standalone installation
+                    → ~/.local/bin/tomcat[.exe]
+                    → existing PATH/login-shell discovery
+                    → Multica daemon → Tomcat ACP adapter
 ```
 
-The launcher reuses the saved `local-tomcat` profile. If its daemon is running or
-starting, it leaves it untouched. Otherwise, it selects the Tomcat CLI in this
-order and passes its absolute path through `MULTICA_TOMCAT_PATH` to `daemon start`:
+With a Tomcat build that supports the shared user entry, install its platform VSIX
+and reload VS Code, or install the standalone CLI with
+`tomcat self-install --add-to-path`. The extension's bundled file is installation
+material, not a runtime path for Multica. Open a fresh terminal or desktop app
+after PATH changes. A pure extension package still requires an existing CLI.
 
-1. The Tomcat VS Code extension in `~/.vscode/extensions`, then VS Code Insiders.
-   It uses the installed-extension registry, not leftover upgrade directories.
-   Without a registry, it searches versioned directories, excluding `.obsolete` entries.
-2. The standalone `tomcat` on `PATH`, then `~/.local/bin` and `~/bin`.
-
-This covers CLI-only, extension-only, and both-installed machines on macOS,
-Linux, and Windows (`tomcat.exe`). A selected executable that cannot run fails
-with an error instead of silently switching installations. The script checks
-local daemon readiness, not successful runtime registration or model execution.
+Use the normal Multica commands with your **saved** profile, from your own terminal,
+not inside an Agent task:
 
 ```bash
-node scripts/start-tomcat.mjs --dry-run                 # status/files only, no startup
-node scripts/start-tomcat.mjs --profile my-profile      # reuse another saved profile
-node scripts/start-tomcat.mjs --profile=                # reuse the unnamed profile
-node scripts/start-tomcat.mjs --extensions-dir /path/to/extensions
-node scripts/start-tomcat.mjs --multica /path/to/multica
+tomcat --version
+multica daemon status --profile local-tomcat --output json
+# Only when that profile's daemon is stopped:
+multica daemon start --profile local-tomcat
+# Confirm readiness after starting; exit code 0 alone is not sufficient:
+multica daemon status --profile local-tomcat --output json
+# If it is not running or does not list Tomcat, inspect the existing logs:
+multica daemon logs --profile local-tomcat
 ```
 
-`VSCODE_EXTENSIONS` also selects a custom extensions directory. Multica itself is
-resolved from this checkout's `server/bin/multica` first, then `PATH` and the user
-bin directories. Use `--multica` to select another build explicitly.
+Use `--profile my-profile` for another saved profile, or `--profile=` for the unnamed
+profile. These examples assume `multica` is installed; for a source-only build,
+replace it with `./server/bin/multica` from the checkout root
+(`.\server\bin\multica.exe` on Windows). No Node launcher, extension-directory scan,
+or automatic `MULTICA_TOMCAT_PATH` injection is needed. An explicit
+`MULTICA_TOMCAT_PATH` still takes precedence; it is not cleared or rewritten.
 
 **First use only:** if you have not configured a CLI profile, save your server and
 app URLs and log in once. For example, for a local development environment (replace
@@ -115,26 +117,26 @@ these ports with the values reported by `make status`; Windows uses `multica.exe
 ./server/bin/multica config set server_url http://localhost:18461 --profile local-tomcat
 ./server/bin/multica config set app_url http://localhost:13381 --profile local-tomcat
 ./server/bin/multica login --profile local-tomcat
-node scripts/start-tomcat.mjs
 ```
 
-The launcher never runs `setup` or `login`, resets configuration, installs binaries,
-or restarts/stops a daemon. It keeps the existing HOME, credentials, and daemon
-settings; normal Multica environment overrides still apply. Only the child process's
-`MULTICA_TOMCAT_PATH` is replaced by discovery. Run it in your own terminal, not
-inside a Tomcat Agent task. Starting a daemon allows it to claim eligible queued work.
+Then use the status/start/status sequence above. Do not rerun `setup`, reset the
+profile or log in again merely to start an already configured daemon. Starting it
+allows it to claim eligible queued work; you do not need to start it before each task.
 
-You do **not** need to run it before each task: only when the daemon is stopped,
-such as after reboot. Each fresh start rediscovers the extension version; an already
-running daemon is not switched to a new CLI. This is not an autostart installer, and
-shell-only `MULTICA_TOMCAT_PATH` does not persist into OS autostart (see
-[Boot autostart](#boot-autostart)).
+The commands retain native Multica behavior, not the retired wrapper's extra
+checks: an already-running daemon is reported rather than restarted; an owned
+boot-autostart entry may be refreshed and native autostart hints may appear.
+Creating a new boot registration remains an explicit operation (see
+[Boot autostart](#boot-autostart)). Check that status is `running` and `agents`
+includes `tomcat`; a startup timeout can return zero while still starting.
+Discovery/readiness alone does not prove runtime registration or model execution.
 
-Focused offline regression check (temporary files and fake CLIs only):
-
-```bash
-node --test scripts/start-tomcat.test.mjs
-```
+A running daemon is not automatically rebound to a new CLI path or environment.
+Updating Tomcat's program file does not upgrade an already-running shared backend,
+and extension activation can replace a standalone/development copy in the standard
+entry. Keep a pinned development binary in its build directory and select it
+explicitly. Choose any restart yourself after considering active tasks; shell-only
+overrides are not persisted into OS autostart.
 
 ## Authentication
 
