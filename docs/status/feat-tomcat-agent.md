@@ -1,23 +1,36 @@
 | Owner | Update Time | State | Branch | Cov% |
 | :--- | :--- | :--- | :--- | :--- |
-| Tomcat Agent | 2026-11-06 17:40 +0800 | ACTIVE | feat/tomcat-agent | - |
+| Tomcat Agent | 2026-11-08 23:31 +0800 | ACTIVE | feat/tomcat-agent | - |
 
 ### DONE
 
-- Read the real model catalog through the adapter instead of returning an empty one. `discoverTomcatModels` runs the runtime-bound command as `serve models` with the same identity used for ACP execution, consumes only the stable `ListModelsPayload` fields, hides models whose saved credentials are missing, and reports invalid payloads, duplicate entries, timeouts and zero usable models as errors. Reusing the existing daemon `failed`/`error` path keeps messages on the create-page affordance, with no new protocol, toast, page or daemon production branch.
-- No discovery memo for Tomcat: an explicit refresh must observe newly saved credentials immediately, so this branch bypasses the shared discovery cache; caches of other runtimes are untouched.
-- Production changes stay inside the Tomcat adapter. `server/pkg/agent/models.go` only switches the `tomcat` case to the new function, and `server/pkg/agent/tomcat_models.go` is new. The remaining changes are tests covering the adapter, the daemon report and the browser journey; the earlier registration work in `agent.go`, `launch.go` and `version.go` was already committed.
-- Include the production file, four test files and this status update in one commit. Per the user's instruction, do not rerun tests, builds or type checks. Coverage was not measured; omit a numeric coverage trailer.
-- Restore Agent-owned Tomcat integration tests without inheriting the outer Agent marker into the private fixture. The default environment regression checks both direct CLI and registered backend environments with marked and unmarked parents.
-- Keep the private HOME when service shutdown fails and report the failure; successful shutdown retains normal cleanup.
-- Include both test files in this local commit. The production Tomcat backend, shared service, database and application behavior are unchanged.
-- Earlier implementation verification passed: the default environment regression, tagged package vet/format checks, and the opt-in real shared-service test covering registered backend execution, cancellation and same-session resume. Evidence is in the sibling Tomcat checkout under `.agents/acceptance/20261104T110014Z-isolated-tests/`.
-- For that earlier commit, staged, unstaged and untracked files were inspected and the complete related diff reviewed. Per the user's instruction, tests and builds were not rerun; coverage was not measured, so omit a numeric coverage trailer.
+- Extend the existing Tomcat integration fixture to verify that all four custom arguments reach the real ACP/shared-service path before the first prompt. The fixture creates, starts and completes the same saved plan, checks the recorded recommended-answer source, and preserves the existing opt-in and disposable-HOME boundaries.
+- Cover host cancellation while waiting for a manual answer through a same-project Native observer using the actual shared-service handshake. Require the pending question before cancellation, its withdrawal afterwards, process cleanup, the original session identity and a still-running private service.
+- Add a process-free regression using the actual `session/load`, `-32603`, `session_config_failed` error contract so startup configuration failures do not discard an existing session as a rejected resume.
+- Add `tomcat_config.md` as the maintained configuration and handoff guide: genuine Mika, planner and coder roles, custom arguments, original-plan IDs and paths, explicit human approval, attachment snapshots, progress queries, VS Code manual answers, upgrade behavior and scoped verification commands.
+- Keep the existing production adapter unchanged: it already passes custom arguments to `tomcat acp`. No new Multica mode parser, database field, settings form, approval service or polling mechanism is introduced.
+- This commit preserves the earlier real-model discovery and private-fixture protections already on the branch. It includes the integration test, configuration guide and this status file; the unrelated generated route-type path change in `apps/web/next-env.d.ts` remains unstaged and unmodified.
 
 ### INTERFACE
 
-No public interface changes. Environment factories are test-only; real-agent smoke tests remain explicitly opt-in behind `agentintegration` and `MULTICA_RUN_REAL_AGENT_SMOKE=1`.
+No Multica production interface changes. The guide documents Tomcat's `--mode`, `--plan-review`, `--question-policy` and `--plan-start` settings through the existing per-agent custom-argument field. Ordinary questions default to manual; recommended answers do not authorize implementation or tools. Manual answer cards belong in a same-HOME, same-project VS Code observer, not the Multica task page.
+
+### VERIFICATION
+
+| Scope | Result | Evidence and boundary |
+| :--- | :--- | :--- |
+| Accepted source snapshot | The integration test, guide and preserved generated file match the accepted hashes | Current preflight `1794151679400-2f39sl`, exit 0; no production changes since acceptance |
+| Format, static analysis and error classification | gofmt, `go vet -tags=agentintegration ./pkg/agent` and `TestTomcatSessionConfigFailureDoesNotRejectResume` passed | Current `1794151679528-2ekzb0`, exit 0; the focused test does not launch an agent or access an account |
+| Cross-repository fixture | The opt-in `^TestTomcat` integration batch passed in 88.539s using the development Tomcat binary | Reuse `1794147050670-yl7yk6`, exit 0, because relevant source and fixtures are unchanged; local model fixture, not paid-account acceptance |
+| Guide examples | Seven Bash blocks, two JSON blocks and three custom-argument arrays passed syntax checks | Reuse `1794146442191-yrgoml`, exit 0; the guide hash is unchanged |
+| Desktop and VS Code journeys | Existing manual/recommended planning, approval, original-plan execution and observer evidence retained | Not rerun for this commit; the isolated services remain stopped |
+
+The detailed local evidence remains in the sibling Tomcat checkout under `.agents/acceptance/multica-plan-collaboration/` and `.agents/acceptance/multica-tomcat-remediation/`. Coverage was not measured, so the commit omits a numeric coverage trailer. This is local source delivery, not a push, release, installation or shared-service restart.
 
 ### BLOCKED
 
-No local commit blocker. The failed-stop branch was reviewed but not fault-injected; a successful stop is not proof of that failure path. Windows/Linux/arm64 native acceptance, paid model accounts, remote CI and release readiness are not established by the macOS x86_64 checks. Earlier unrelated CLI failures and retained failed-fixture resources remain documented in the Tomcat acceptance evidence rather than being claimed as resolved.
+| Item | Limitation | Boundary |
+| :--- | :--- | :--- |
+| Platform and release readiness | Windows/Linux/arm64 native acceptance, remote CI and release readiness are not established by these macOS checks | Do not claim whole-workspace, cross-platform or fresh paid-model acceptance |
+| Existing environment limitations | Earlier unrelated CLI failures, the un-injected failed-stop branch and retained failed-fixture resources remain documented in the Tomcat evidence | Do not count them as new regressions or silently claim they were resolved |
+| Runtime upgrade | Installing a package does not replace an already running Tomcat shared service; explicit executable overrides may still select an older build | No installation, configuration changes or service restart in this commit operation |
