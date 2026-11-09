@@ -102,9 +102,11 @@ func (b *tomcatBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	}
 	processDone := make(chan struct{})
 	var exitErr, scanErr error
+	var sawStdout bool
 	go func() {
 		scanner := newAgentStreamScanner(stdout)
 		for scanner.Scan() {
+			sawStdout = true
 			c.handleLine(scanner.Text())
 		}
 		scanErr = scanner.Err()
@@ -156,7 +158,17 @@ func (b *tomcatBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		default:
 		}
 		if (exitErr != nil && !lateCancel) || scanErr != nil {
-			cleanupError = strings.TrimSpace(cleanupError + " " + fmt.Sprintf("tomcat transport shutdown failed (process: %v, stream: %v)", exitErr, scanErr))
+			var exit *exec.ExitError
+			// Native Tomcat exits 2 only for argument parsing, before connecting
+			// to the shared service. Custom profile commands have no such contract.
+			if b.cfg.BuiltinRuntime && cleanupError == "" && !sawStdout && scanErr == nil &&
+				errors.As(exitErr, &exit) && exit.ExitCode() == 2 {
+				result.Error = strings.TrimSpace(result.Error + " " + fmt.Sprintf(
+					"tomcat at %s rejected its arguments (%v); compare `%s acp --help` with the configured arguments",
+					cmd.Path, exitErr, cmd.Path))
+			} else {
+				cleanupError = strings.TrimSpace(cleanupError + " " + fmt.Sprintf("tomcat transport shutdown failed (process: %v, stream: %v)", exitErr, scanErr))
+			}
 		}
 		if cleanupError != "" {
 			result.Status = "cleanup_unconfirmed"

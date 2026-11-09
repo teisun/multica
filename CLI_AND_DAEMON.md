@@ -102,6 +102,19 @@ multica daemon status --profile local-tomcat --output json
 multica daemon logs --profile local-tomcat
 ```
 
+Use only one Tomcat execution entry per backend. The [Desktop app runs its own
+named daemon profile](#start); if it is already connected to that backend and
+running Tomcat, do not also start `local-tomcat` or another CLI profile for it.
+Both can register the same runtime and claim the same queue, but each launches
+Tomcat using its own environment, including any explicit `MULTICA_TOMCAT_PATH`.
+Before starting a CLI profile, check `multica daemon status --profile <name>` for
+both it and the desktop profile under `~/.multica/profiles/`. If a Tomcat task
+rejects its startup arguments, its error names the actual executable; check that
+file's `--version` and `acp --help`, not just the terminal's `tomcat --version`.
+To stop a redundant daemon, first let its active tasks finish, then use
+`multica daemon stop --profile <name>`; this affects every workspace watched by
+that profile, and a failed shutdown request can fall back to killing the daemon.
+
 Use `--profile my-profile` for another saved profile, or `--profile=` for the unnamed
 profile. These examples assume `multica` is installed; for a source-only build,
 replace it with `./server/bin/multica` from the checkout root
